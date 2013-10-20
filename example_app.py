@@ -8,6 +8,7 @@ keyStoreD = {}
 @get("/")
 def root():
     # Returns some documentation for the user to look at
+    # Consider using Sphinx and sphinxcontrib-httpdomain .. but this is just an example
     return  """
             <header><h1>Example API app Documentation</h1>
             <h2>GET /api/v1/key/(str:keyName)</h2>Returns the value for the given key.
