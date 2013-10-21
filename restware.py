@@ -74,8 +74,8 @@ class RestwarePlugin:
         '''
         This method wraps the given callback function so that we can try to serialize the response data
         as JSON, and then Gzip the returned string. This only applies in two scenarios:
-            for routes whose rule starts with "/api/"
-            for errors (400+)
+        - for routes whose rule starts with some user-defined base path under which all API operations lie
+        - for errors (400+)
 
         This only applies when the data returned from the callback if of type list or dict. If it is something
         else, then we let bottle do whatever it would normally do. Other data will be returned, but a warning
@@ -188,6 +188,11 @@ class Restware(object):
     .. codeauthor:: Trevor Tonn <smthmlk@gmail.com>
     """
     def __init__(self, app, logger=None):
+        """
+        Args:
+            app (wsgi app instance, required): the app to wrap with this middleware
+            logger (logging.Logger, optional): provide a logger instance to use
+        """
         self.app = app
         self.logger = logger
         if not self.logger:
@@ -198,6 +203,18 @@ class Restware(object):
             self.logger.setLevel(logging.DEBUG)
 
     def postprocess(self, yieldedData, environ):
+        """
+        This method is deprecated. See RestwarePlugin which performs all post-request handling operations.
+
+        This is not the right way to post-process responses, it seems. You can easily manipulate response
+        body data here, but you have no access to the response headers. Worse, wrapping the start_response
+        function to get access to the headers list is not a good solution because some webservers do
+        different things with it: CherryPy extends another list with those headers as soon as the
+        start_response is called, so we have no access to the "real" list of headers and cannot manipulate
+        them; Bottle's reference WSGI webserver does not, and so the hooking technique works there.
+
+        A better place to do this is via bottle plugin, before the start_response function is called.
+        """
         # We can now post-process whatever the app we're wrapping is sending back to the client
         if 'gzip' in environ.get("HTTP_ACCEPT_ENCODING","") and len(yieldedData) > 0:
             self.logger.debug("client accepts gzip, gzipping data")
@@ -212,7 +229,6 @@ class Restware(object):
             sio.close()
 
             # update the content-length (it is already set) and add the content-encoding header
-            print "restware.postprocess(): headers=>%x" % id(self.headers)
             for idx, header in enumerate(self.headers):
                 if header[0].lower() in ('content-length', 'content-encoding'):
                     self.headers.pop(idx)
@@ -226,6 +242,15 @@ class Restware(object):
         return yieldedData
 
     def preprocess(self, environ):
+        """
+        The method lets see the request before the app does, so it's a reasonable place to look at the
+        request body and request headers to see if any gzipped content was provided, and transparently
+        handle it. If nothing is given, or was was given is gzip-encoded, then this method does not tamper
+        with anything.
+
+        Args:
+            environ (wsgi dict): from the wsgi webserver. This may be manipulated.
+        """
         # log a bit about this request.
         self.logger.info("REQUEST %(REQUEST_METHOD)s server=%(SERVER_NAME)s:%(SERVER_PORT)s path=%(PATH_INFO)s query=%(QUERY_STRING)s" % environ)
 
@@ -245,19 +270,21 @@ class Restware(object):
             self.logger.debug("expanded %d bytes of gzip into %d bytes of uncompressed data" % (contentLength, len(decompressedData)))
 
     def __call__(self, environ, start_response):
+        """
+        This method is required for wsgi middleware. It will call whatever app we are wrapping (see init). It will
+        call our preprocess method to examine the request, potentially altering the environ dict, before the our
+        wrapped app calls the provided start_response function.
+        """
         self.preprocess(environ)
 
-        # This is ugly as hell.
-        # WSGI does not let us have access to the response headers unless we call start_response and provide some...
-        # but we're middleware. Someone else before us is going to call that. We want to modify the headers they specify, or add to them
-        # So the ugly hack is to wrap the start_response func so that we can get a reference to the headers list. Once we get a ref,
-        # we keep it in self, so that we may have it in scope for post-processing the wrapped app's response.
+        '''
+        # DEPRECATED
         self.headers = None
         def custom_start_response(status, headers, exc_info=None):
             print "restware.custom_start_process(): headers=>%x" % id(headers)
             self.headers = headers
             return start_response(status, self.headers, exc_info)
-
+        '''
         return self.app(environ, start_response)
         #for i in self.app(environ, custom_start_response):
         #    yield self.postprocess(i, environ)
