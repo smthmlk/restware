@@ -6,13 +6,14 @@ Restware is a plugin and a piece of middleware designed to make Bottle (bottlepy
 Features
 --------
 * JSON input (request body) and output (response body)
-** Anything in the request.body is deserialized from JSON if the request.headers['Content-Type'] has "application/json" in it. Bottle does this for you, but it's got a memory limit of 102400 bytes, which it kind of silently imposes on you. We work around that.
-** Anything in the response.body is serialized to JSON. 
+    * Anything in the request.body is deserialized from JSON if the request.headers['Content-Type'] has "application/json" in it. Bottle does this for you, but it's got a memory limit of 102400 bytes, which it kind of silently imposes on you. We work around that.
+    * Anything in the response.body is serialized to JSON
+        * This is configurable so that only routes under a base-path have their response data serialized as JSON
 * JSON response pretty-printing 
-** All responses can be pretty-printed automatically if the user adds the _pretty_ query parameter with value _true_. By default, all responses come back with the most compact JSON representation possible
+    * All responses can be pretty-printed automatically if the user adds the _pretty_ query parameter with value _true_. By default, all responses come back with the most compact JSON representation possible
 * Transparent Gzip handling for input (request body) and output (response body)
-** Your app does not need to worry about receving a POST with a gzipped request body: it is handled by the Restware middleware
-** Your app's responses--JSON or not--will be gzipped if the client can handle it (request _Accept-Encoding_ header must include _gzip_) otherwise the content is sent uncompressed
+    * Your app does not need to worry about receving a POST with a gzipped request body: it is handled by the Restware middleware
+    * Your app's responses--JSON or not--will be gzipped if the client can handle it (request _Accept-Encoding_ header must include _gzip_) otherwise the content is sent uncompressed
 
 Python, Bottle Versions
 -----------------------
