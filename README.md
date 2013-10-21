@@ -51,11 +51,35 @@ bottle.run(app=wrapped_app, host="0.0.0.0", port=8080, debug=True, server='cherr
 And that's it. Notice that we are using server='cherrypy'; this is because Bottle's reference WSGI server is really inferior, and cherrypy lets you add stuff like SSL (another REST API guideline recommendation) really easily to any bottle app.
 
 
-Serving up documentation and API operations from the same app
--------------------------------------------------------------
+Serving JSON and non-JSON from the same App
+-------------------------------------------
 I like to provide at least basic usage documentation from the API itself, and to keep things simple, I wanted the same bottle app to serve both the documentation and the API operations. Documentation for humans to read is likely something Sphinx generated, and not JSON, so the RestwarePlugin needs to be able to not enforce JSON-only responses all the time.
 
 The RestwarePlugin has a constructor parameter "baseApiPath" that defines what routes it tries to send JSON responses for. This lets you serve your documentation under the root page (/) or a specific sub-directory (/docs) and you won't have JSON returned to clients, while things under, say, apiBasePath='/api/' (the default) will cause all routes under /api/.* to return JSON to clients.
+
+```python
+import restware
+import bottle
+from bottle import get, static_file
+
+# This will return HTML, something that doesn't make sense to return in JSON
+@get("/help")
+def help():
+   return static_file(filename="help.html", root=".")
+
+# This will return a dict, something that does make sense to return in JSON
+@get("/api/v1/cardboard-box/<boxId>")
+def getBoxById(boxId):
+   # ...
+   return {"boxId": boxId, "otherKeys":"..."}
+   
+app = bottle.app()
+
+# Set the apiBasePath so only our API calls get returned as JSON, while /help will not be tampered with
+app.install(restware.RestwarePlugin(apiBasePath="/api/")
+
+bottle.run(app=app, ...)
+```
 
 Logging
 -------
@@ -64,6 +88,7 @@ The plugin and middleware both take optional logging.Logger instances in their c
 Here's how to quickly setup a logger the just spits things out to stdout:
 ```python
 import logging
+import restware
 import sys
 
 logger = logging.getLogger("my customized logger")
