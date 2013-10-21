@@ -27,14 +27,13 @@ Here's what you need to do to help turn bottle into a better platform for writin
 
 ```python
 import bottle
-from bottle import get, put, delete
 import restware
-
-# define the routes for your bottle app here.
-# ...
 
 # Get bottle's default app
 app = bottle.app()
+
+# define the routes for your bottle app here.
+# ...
 
 # Install the RestwarePlugin into the app
 # All of our API operations will reside under /api/, so this plugin will only do its JSON magic
@@ -60,25 +59,25 @@ The RestwarePlugin has a constructor parameter "baseApiPath" that defines what r
 ```python
 import restware
 import bottle
-from bottle import get, static_file
+
+# Set the apiBasePath so only our API calls get returned as JSON, while /help will not be tampered with
+app = bottle.app()
+app.install(restware.RestwarePlugin(apiBasePath="/api/")
 
 # This will return HTML, something that doesn't make sense to return in JSON
-@get("/help")
+@app.get("/help")
 def help():
    return static_file(filename="help.html", root=".")
 
 # This will return a dict, something that does make sense to return in JSON
-@get("/api/v1/cardboard-box/<boxId>")
+@app.get("/api/v1/cardboard-box/<boxId>")
 def getBoxById(boxId):
    # ...
    return {"boxId": boxId, "otherKeys":"..."}
-   
-app = bottle.app()
 
-# Set the apiBasePath so only our API calls get returned as JSON, while /help will not be tampered with
-app.install(restware.RestwarePlugin(apiBasePath="/api/")
-
-bottle.run(app=app, ...)
+# Wrap with our middleware & run the app
+wrapped_app = restware.Restware(app)
+bottle.run(app=wrapped_app, ...)
 ```
 
 Logging
