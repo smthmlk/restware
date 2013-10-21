@@ -138,6 +138,8 @@ class RestwarePlugin:
             # if the retval is not a dict, we don't know what to do with it, so just be transparent
             if type(retval) not in (dict, list):
                 self.logger.error("\033[41;1m You are trying to send the client data that doesn't look like it should be JSON (%s). Fix this! \033[0m" % type(retval))
+                # TODO: consider raising an exception so as to generate a server error (500), forcing the app developer
+                # to confront why/how they are sending back something that doesn't make much sense serializing as JSON
             else:
                 # Was the "pretty" query parameter set?
                 if request.query.get("pretty") == 'true':
