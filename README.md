@@ -60,7 +60,8 @@ The RestwarePlugin has a constructor parameter "baseApiPath" that defines what r
 import restware
 import bottle
 
-# Set the apiBasePath so only our API calls get returned as JSON, while /help will not be tampered with
+# Set the apiBasePath so only our API calls get returned as JSON, while 
+# /help will not be tampered with
 app = bottle.app()
 app.install(restware.RestwarePlugin(apiBasePath="/api/")
 
