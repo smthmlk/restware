@@ -129,8 +129,6 @@ class RestwarePlugin:
         JSONed = False
         GZIPPED = False
 
-        self.logger.info("retval(%s)=%s" % (type(retval), repr(retval)))
-
         # Is this request under the a path we're enforcing JSON output for?
         if (route is not None and hasattr(route, 'rule') and route.rule.startswith(self.baseRulePath)) or response.status_code >= 400:
             # It is. Try to serialize the returned data as JSON
@@ -164,7 +162,13 @@ class RestwarePlugin:
             # we'll keep the HTTPResponse so we can update it after gzipping.
             self.logger.debug("Found HTTPResponse instance")
             httpRespObj = retval
-            retval = retval.body.read()
+            if type(retval.body) in (str, unicode):
+                retval = retval.body
+            elif hasattr(retval.body, "read"):
+                retval = retval.body.read()
+            else:
+                self.logger.error("HTTPResponse.body attr is not a str and does not have a read() method!")
+                raise ValueError("HTTPResponse.body is not sane: attr is not a str, and is not a file-like object")
 
         if 'gzip' in request.headers.get("Accept-Encoding","") and len(retval) > 0:
             self.logger.debug("client accepts gzip, gzipping data")
