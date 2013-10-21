@@ -17,6 +17,9 @@ import bottle
 from bottle import get, put, delete
 import restware
 
+# define the routes for your bottle app here.
+# ...
+
 # Get bottle's default app
 app = bottle.app()
 
