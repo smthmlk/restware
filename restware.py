@@ -129,6 +129,8 @@ class RestwarePlugin:
         JSONed = False
         GZIPPED = False
 
+        self.logger.info("retval(%s)=%s" % (type(retval), repr(retval)))
+
         # Is this request under the a path we're enforcing JSON output for?
         if (route is not None and hasattr(route, 'rule') and route.rule.startswith(self.baseRulePath)) or response.status_code >= 400:
             # It is. Try to serialize the returned data as JSON
@@ -157,6 +159,13 @@ class RestwarePlugin:
 
         # Gzipping the response
         # Can the client even handle gzipped response bodies?
+        httpRespObj = None
+        if isinstance(retval, bottle.HTTPResponse):
+            # we'll keep the HTTPResponse so we can update it after gzipping.
+            self.logger.debug("Found HTTPResponse instance")
+            httpRespObj = retval
+            retval = retval.body.read()
+
         if 'gzip' in request.headers.get("Accept-Encoding","") and len(retval) > 0:
             self.logger.debug("client accepts gzip, gzipping data")
             # the client handle gzipped data, so lets gzip out data
@@ -168,16 +177,25 @@ class RestwarePlugin:
             sio.seek(0)
             retval = sio.read()
             sio.close()
-
-            # update the content-length (it is already set) and add the content-encoding header
-            response.set_header('Content-Length',str(len(retval)))
-            response.set_header('Content-Encoding','gzip')
             self.logger.debug("new gzipped response data is %d bytes" % len(retval))
             GZIPPED = True
+
+            # Were we given an HTTPResponse isntance? If so, we need to update it a bit
+            if httpRespObj:
+                self.logger.debug("Updating HTTPResponse instance with gzipped content, headers")
+                httpRespObj.body = retval
+                httpRespObj['Content-Length'] = str(len(retval))
+                httpRespObj['Content-Encoding'] = 'gzip'
+            else:
+                # update the content-length (it is already set) and add the content-encoding header
+                response.set_header('Content-Length',str(len(retval)))
+                response.set_header('Content-Encoding','gzip')
         else:
             self.logger.debug("client either doesn't accept gzip or there's no data to return")
 
         self.logger.info("RESPONSE %s gzipped:%s json:%s size:%dB" % (response.status_code, GZIPPED, JSONed, len(retval)))
+        if httpRespObj:
+            return httpRespObj
         return retval
 
 
