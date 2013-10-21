@@ -43,7 +43,7 @@ app = bottle.app()
 
 # Install the RestwarePlugin into the app
 # All of our API operations will reside under /api/, so this plugin will only do its JSON magic for routes under that base-path
-app.install(restware.RestwarePlugin(baseRulePath="/api/"))
+app.install(restware.RestwarePlugin(apiBasePath="/api/"))
 
 # Wrap the app with our Restware middleware
 wrapped_app = restware.Restware(app)

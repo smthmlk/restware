@@ -1,3 +1,10 @@
+"""
+Restware is a plugin for bottle and a piece of middleware (wsgi) to help developers create more guideline-conforming REST APIs using bottle.
+
+.. codeauthor:: Trevor Tonn <smthmlk@gmail.com>
+
+Released under the BSD 2-Clause license, http://opensource.org/licenses/BSD-2-Clause
+"""
 import StringIO
 import gzip
 import json
@@ -12,6 +19,9 @@ class RestwarePlugin:
     This plugin is designed to fix a few peculiar behaviors that keep Bottle from being a really
     good engine for quickly developing a REST-esque API.
 
+    This class conforms to Bottle's Plugin interface,
+        http://bottlepy.org/docs/dev/plugindev.html#plugin-api
+
     The two issues rectified by this module are:
         1. Errors (400+ status code responses) are now always JSON responses
         2. All request body data is checked for JSON in case the memory limit imposed by bottle
@@ -21,12 +31,21 @@ class RestwarePlugin:
     You can configure just one thing: what route prefix should be handled as JSON for response
     body data. This lets your app serve up documentation (static HTML, likely) while a set of
     routes that make up your API's operations are all treated as if they're going to return JSON
+
+    .. codeauthor:: Trevor Tonn <smthmlk@gmail.com>
+
     """
     name = "restwareplugin"
     api = 2
 
-    def __init__(self, baseRulePath='/api/', logger=None):
-        self.baseRulePath = baseRulePath
+    def __init__(self, apiBasePath='/api/', logger=None):
+        """
+        Args:
+            apiBasePath (str, optional): Set the base path under which your API operations/routes will lie.
+            Defaults to /api/, but you can set it to '/' to force all responses be JSON
+            logger (logging.Logger, optional): if you want custom logging, specify your own logger instance
+        """
+        self.baseRulePath = apiBasePath
         self.logger = logger
         if not self.logger:
             self.logger = logging.getLogger("RestPlugin")
@@ -64,17 +83,6 @@ class RestwarePlugin:
 
         We can also return pretty-printed JSON. All the client must do is specify the "pretty" query parameter
         and give it the "true" value: &pretty=true
-        '''
-        '''
-        if route == "error":
-            # Apply to all error responses, no exceptions
-            self.logger.debug("applying REST wrapper for Error callback %s" % repr(callback))
-        #elif route is not None and hasattr(route, 'rule') and route.rule.startswith(self.baseRulePath):
-        #    self.logger.debug("applying REST wrapper to API callback=%s, rule=%s" % (repr(callback), route.rule))
-        else:
-            # do not apply.
-            self.logger.debug("not applying REST wrapper to callback=%s: rule not under %s, and not an error route" % (repr(callback), self.baseRulePath))
-            return callback
         '''
         def wrapper(*args, **kwargs):
             # perform pre operations to setup the request if necessary
@@ -173,24 +181,14 @@ class RestwarePlugin:
 
 class Restware(object):
     """
-    Middleware that handles gzipping incoming and outgoing data. This should work with any other WSGI app obviously,
-    but it is tested with Bottle.
+    Middleware that handles de-gzipping incoming request body data. This should work with any other WSGI app obviously,
+    but it is tested with Bottle, and it is designed to work in conjunction with the RestwarePlugin (which handles
+    gzipping response body data).
 
-    As stated, this middlware approach fixes the other big issue with Bottle (and some other WSGI frameworks) which
-    do not handle gzipping content. For example:
-        * this class will seamlessly handle POSTed data which is gzipped or not gzipped; if it is gzipped, it will
-          decompress it, update the Content-Length request header, and the wrapped app will not have to deal with
-          gzipped data
-        * Similarly, this class will seamlessly gzip response data and update/add response headers as necessary if
-          the client's request header "Accept-Encoding" includes gzip; if it doesn't, then the data is not
-          compressed
-
-    Combining this middleware and the plugin for bottle will yield a great place to start for building a quick,
-    guideline-following RESTful API using Bottle.
+    .. codeauthor:: Trevor Tonn <smthmlk@gmail.com>
     """
-    def __init__(self, app, apiBasePath='/', logger=None):
+    def __init__(self, app, logger=None):
         self.app = app
-        self.apiBasePath = apiBasePath
         self.logger = logger
         if not self.logger:
             self.logger = logging.getLogger("Restware")
