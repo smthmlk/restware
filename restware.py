@@ -129,6 +129,10 @@ class RestwarePlugin:
         JSONed = False
         GZIPPED = False
 
+        if retval is None:
+            self.logger.warn("retval is None!")
+            return retval
+
         # Is this request under the a path we're enforcing JSON output for?
         if (route is not None and hasattr(route, 'rule') and route.rule.startswith(self.baseRulePath)) or response.status_code >= 400:
             # It is. Try to serialize the returned data as JSON
@@ -170,6 +174,17 @@ class RestwarePlugin:
                 self.logger.error("HTTPResponse.body attr is not a str and does not have a read() method!")
                 raise ValueError("HTTPResponse.body is not sane: attr is not a str, and is not a file-like object")
 
+        elif isinstance(retval, bottle.HTTPError):
+            self.logger.debug("Found HTTPError instance")
+            httpRespObj = retval
+            if type(retval.body) in (str, unicode):
+                retval = retval.body
+            elif hasattr(retval.body, "read"):
+                retval = retval.body.read()
+            else:
+                self.logger.error("HTTPError.body attr is not a str and does not have a read() method!")
+                raise ValueError("HTTPError.body is not sane: attr is not a str, and is not a file-like object")
+
         if 'gzip' in request.headers.get("Accept-Encoding","") and len(retval) > 0:
             self.logger.debug("client accepts gzip, gzipping data")
             # the client handle gzipped data, so lets gzip out data
@@ -195,7 +210,7 @@ class RestwarePlugin:
                 response.set_header('Content-Length',str(len(retval)))
                 response.set_header('Content-Encoding','gzip')
         else:
-            self.logger.debug("client either doesn't accept gzip or there's no data to return")
+            self.logger.debug("client either doesn't accept gzip or there's no data to return; len(retval)=%d" % len(retval))
 
         self.logger.info("RESPONSE %s gzipped:%s json:%s size:%dB" % (response.status_code, GZIPPED, JSONed, len(retval)))
         if httpRespObj:
@@ -300,16 +315,4 @@ class Restware(object):
         wrapped app calls the provided start_response function.
         """
         self.preprocess(environ)
-
-        '''
-        # DEPRECATED
-        self.headers = None
-        def custom_start_response(status, headers, exc_info=None):
-            print "restware.custom_start_process(): headers=>%x" % id(headers)
-            self.headers = headers
-            return start_response(status, self.headers, exc_info)
-        '''
         return self.app(environ, start_response)
-        #for i in self.app(environ, custom_start_response):
-        #    yield self.postprocess(i, environ)
-
