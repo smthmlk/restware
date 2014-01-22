@@ -63,7 +63,7 @@ class RestwarePlugin:
         def standardErrorHandlerFunc(errorInst):
             self.logger.warn("error, %s" % errorInst.status)
             if type(errorInst.body) is not dict:
-                return {"message":errorInst.body}
+                return {"message": errorInst.body}
             return errorInst.body
 
         for errorCode in [statusCode for statusCode, description in bottle.HTTP_CODES.iteritems() if statusCode >= 400]:
@@ -86,7 +86,7 @@ class RestwarePlugin:
         '''
         def wrapper(*args, **kwargs):
             # perform pre operations to setup the request if necessary
-            #self.preprocessRequest(route)
+            self.preprocessRequest(route)
             retval = callback(*args, **kwargs)
             return self.postprocessRequest(retval, route)
         return wrapper
@@ -95,7 +95,9 @@ class RestwarePlugin:
         """
         This preprocessor specifically looks for POSTed JSON that exceeds bottle's MEMLIMIT (102400 bytes I think)
         """
-        if not request.headers.get("Content-Type","").startswith("application/json"):
+        request.jsonData = None
+
+        if not request.headers.get("Content-Type", "").startswith("application/json"):
             # there is no JSON posted, so we can return
             self.logger.debug("No JSON to decode; finished")
             return
@@ -104,23 +106,22 @@ class RestwarePlugin:
         if hasattr(request, "json") and request.json is not None:
             # It is already parsed, so there's nothing to do
             self.logger.debug("JSON data already parsed by bottle")
+            request.jsonData = request.json
             return
+
+        self.logger.debug("Attempting to parse JSON from request.body since request.json is missing/None")
+        # ensure some data was actually POSTed
+        if hasattr(request, "body") and request.body:
+            try:
+                # TODO: set encoding based on request header
+                request.jsonData = json.load(request.body)
+                self.logger.debug("Decoded JSON successfully")
+            except Exception, e:
+                self.logger.warn("Request header Content-Type indicates JSON, and we failed to parse request.body: %s" % e)
+                request.body.seek(0)
+                self.logger.warn("Request body (first 32bytes)=%s" % repr(request.body.read(32)))
         else:
-            self.logger.warn("Attempting to parse JSON from request.body since request.json is missing/None")
-            # ensure some data was actually POSTed
-            if hasattr(request, "body") and request.body:
-                try:
-                    # TODO: set encoding based on request header
-                    request.json = json.load(request.body)
-                    self.logger.debug("Decoded %d bytes of JSON successfully" % len(request.body))
-                except Exception, e:
-                    self.logger.warn("Request header Content-Type indicates JSON, and we failed to parse request.body: %s" % e)
-                    request.body.seek(0)
-                    print "data=%s" % repr(request.body.read())
-                    request.json = None
-            else:
-                self.logger.warn("Request header Content-Type indicates JSON, but no data was POSTed?")
-                request.json = None
+            self.logger.warn("Request header Content-Type indicates JSON, but no data was POSTed?")
 
     def postprocessRequest(self, retval, route):
         """
@@ -152,7 +153,7 @@ class RestwarePlugin:
                     retval = json.dumps(retval, indent=4, sort_keys=True)
                 else:
                     # It was not. By default, we'll use the most compact representation
-                    retval = json.dumps(retval, separators=(',',':'))
+                    retval = json.dumps(retval, separators=(',', ':'))
                 response.content_type = "application/json"
                 self.logger.debug("%d bytes of JSON created" % len(retval))
                 JSONed = True
@@ -185,7 +186,7 @@ class RestwarePlugin:
                 self.logger.error("HTTPError.body attr is not a str and does not have a read() method!")
                 raise ValueError("HTTPError.body is not sane: attr is not a str, and is not a file-like object")
 
-        if 'gzip' in request.headers.get("Accept-Encoding","") and len(retval) > 0:
+        if 'gzip' in request.headers.get("Accept-Encoding", "") and len(retval) > 0:
             self.logger.debug("client accepts gzip, gzipping data")
             # the client handle gzipped data, so lets gzip out data
             self.logger.debug("original response data was %d bytes" % len(retval))
@@ -207,8 +208,8 @@ class RestwarePlugin:
                 httpRespObj['Content-Encoding'] = 'gzip'
             else:
                 # update the content-length (it is already set) and add the content-encoding header
-                response.set_header('Content-Length',str(len(retval)))
-                response.set_header('Content-Encoding','gzip')
+                response.set_header('Content-Length', str(len(retval)))
+                response.set_header('Content-Encoding', 'gzip')
         else:
             self.logger.debug("client either doesn't accept gzip or there's no data to return; len(retval)=%d" % len(retval))
 
@@ -255,7 +256,7 @@ class Restware(object):
         A better place to do this is via bottle plugin, before the start_response function is called.
         """
         # We can now post-process whatever the app we're wrapping is sending back to the client
-        if 'gzip' in environ.get("HTTP_ACCEPT_ENCODING","") and len(yieldedData) > 0:
+        if 'gzip' in environ.get("HTTP_ACCEPT_ENCODING", "") and len(yieldedData) > 0:
             self.logger.debug("client accepts gzip, gzipping data")
             # the client handle gzipped data, so lets gzip out data
             self.logger.debug("original response data was %d bytes" % len(yieldedData))
@@ -272,8 +273,8 @@ class Restware(object):
                 if header[0].lower() in ('content-length', 'content-encoding'):
                     self.headers.pop(idx)
                     self.logger.debug("found existing response header %s; removing" % header[0])
-            self.headers.append(('Content-Length',len(yieldedData)))
-            self.headers.append(('Content-Encoding','gzip'))
+            self.headers.append(('Content-Length', len(yieldedData)))
+            self.headers.append(('Content-Encoding', 'gzip'))
             self.logger.debug("new gzipped response data is %d bytes" % len(yieldedData))
         else:
             self.logger.debug("client either doesn't accept gzip or there's no data to return")
@@ -297,7 +298,7 @@ class Restware(object):
         if environ['REQUEST_METHOD'] == 'POST' and environ.get("HTTP_CONTENT_ENCODING") == 'gzip':
             # we need to decompress the gzipped data
             self.logger.debug("gzipped data found in POST body")
-            contentLength = int(environ.get('CONTENT_LENGTH',0))
+            contentLength = int(environ.get('CONTENT_LENGTH', 0))
             compressedData = environ['wsgi.input'].read(contentLength)
             sio = StringIO.StringIO(compressedData)
             gzFile = gzip.GzipFile(fileobj=sio)
